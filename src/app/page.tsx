@@ -38,6 +38,7 @@ export default function Home() {
   const lastSelectedIdRef = useRef<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [editingGame, setEditingGame] = useState<GameWithTags | null>(null);
+  const [similarStack, setSimilarStack] = useState<GameWithTags[]>([]);
   const [view, setView] = useState<"cards" | "table">("cards");
   const [cardCols, setCardCols] = useState(6);
   const [slideshow, setSlideshow] = useState(false);
@@ -331,7 +332,7 @@ export default function Home() {
   const onGenreFilter = useCallback((name: string, mode: "include" | "exclude") => toggleStrFilter("includeGenres", "excludeGenres", name, mode), [toggleStrFilter]);
   const onFeatureFilter = useCallback((name: string, mode: "include" | "exclude") => toggleStrFilter("includeFeatures", "excludeFeatures", name, mode), [toggleStrFilter]);
   const onCommunityTagFilter = useCallback((name: string, mode: "include" | "exclude") => toggleStrFilter("includeCommunityTags", "excludeCommunityTags", name, mode), [toggleStrFilter]);
-  const closeInspector = useCallback(() => setInspectorGame(null), []);
+  const closeInspector = useCallback(() => { setSimilarStack([]); setInspectorGame(null); }, []);
 
   // Debounced Steam search when in search mode
   useEffect(() => {
@@ -364,6 +365,14 @@ export default function Home() {
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
+
+      // Escape from search box: clear search text and blur
+      if (e.key === "Escape" && e.target === searchRef.current) {
+        setSearchQuery("");
+        searchRef.current?.blur();
+        return;
+      }
+
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       // Auto-focus search on printable key
@@ -374,8 +383,10 @@ export default function Home() {
 
       if (e.key === "Escape") {
         if (editingGame) setEditingGame(null);
+        else if (similarStack.length > 0) setSimilarStack((s) => s.slice(0, -1));
         else if (inspectorGame) setInspectorGame(null);
         else if (selectedGame) setSelectedGame(null);
+        else { searchRef.current?.focus(); }
         return;
       }
       // Enter/Space opens inspector for highlighted game
@@ -425,7 +436,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [selectedGame, inspectorGame, editingGame, games, view]);
+  }, [selectedGame, inspectorGame, editingGame, similarStack, games, view]);
 
   // Click toggles inspector popup (and highlights)
   const handleSelectGame = (game: GameWithTags) => {
@@ -450,33 +461,24 @@ export default function Home() {
       setSteamResults((prev) => prev.filter((r) => r.appid !== result.appid));
       const gameId = data.games?.[0]?.id;
       if (!gameId) return;
-      // Fetch metadata and wait for it to complete before opening edit modal
+      // Open modal immediately with basic data
+      setEditingGame({
+        id: gameId, name: result.name, steam_appid: result.appid,
+        notes: "", description: "", steam_genres: "[]", steam_features: "[]",
+        community_tags: "[]", developers: "", publishers: "", release_date: "",
+        screenshots: "[]", movies: "[]", tags: data.games?.[0]?.tags || [],
+      } as GameWithTags);
+      // Fetch metadata in background, then refresh modal data
       if (result.appid) {
-        try {
-          await fetch(`/api/games/${gameId}/fetch-metadata`, { method: "POST" });
-        } catch { /* ignore */ }
-      }
-      // Fetch fresh game data from API so modal has metadata
-      try {
-        const freshRes = await fetch(`/api/games/${gameId}`);
-        if (freshRes.ok) {
-          const freshGame = await freshRes.json();
-          setEditingGame(freshGame);
-        }
-      } catch {
-        // Fallback: open with minimal data
-        setEditingGame({
-          id: gameId, name: result.name, steam_appid: result.appid,
-          notes: "", description: "", steam_genres: "[]", steam_features: "[]",
-          community_tags: "[]", developers: "", publishers: "", release_date: "",
-          review_sentiment: "", positive_percent: 0, total_reviews: 0,
-          metacritic_score: 0, screenshots: "[]", movies: "[]",
-          total_screenshots: 0, total_movies: 0,
-          steam_image_url: result.image, wishlist_date: null,
-          added_at: new Date().toISOString().split("T")[0],
-          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-          tags: [],
-        });
+        fetch(`/api/games/${gameId}/fetch-metadata`, { method: "POST" }).then(async () => {
+          try {
+            const freshRes = await fetch(`/api/games/${gameId}`);
+            if (freshRes.ok) {
+              const freshGame = await freshRes.json();
+              setEditingGame((prev) => prev?.id === gameId ? freshGame : prev);
+            }
+          } catch { /* ignore */ }
+        }).catch(() => {});
       }
     } finally { setAdding(false); }
   }, [addGame]);
@@ -638,7 +640,7 @@ export default function Home() {
 
         {/* Filter chips */}
         {isFiltered && (
-          <FilterChips tags={tags} subtags={subtags} filters={filters} onChange={setFilters} />
+          <FilterChips tags={tags} subtags={subtags} filters={filters} onChange={setFilters} onClearSearch={() => setSearchQuery("")} />
         )}
 
         {/* Main content area */}
@@ -719,8 +721,36 @@ export default function Home() {
           onSubtagInclude={toggleIncSub} onSubtagExclude={toggleExcSub}
           onGenreFilter={onGenreFilter}
           onFeatureFilter={onFeatureFilter}
-          onCommunityTagFilter={onCommunityTagFilter} />
+          onCommunityTagFilter={onCommunityTagFilter}
+          onSimilarClick={async (gameId) => {
+            const found = allGames.find((g) => g.id === gameId);
+            if (found) { setSimilarStack((s) => [...s, found]); return; }
+            try {
+              const res = await fetch(`/api/games/${gameId}`);
+              if (res.ok) { const g = await res.json(); setSimilarStack((s) => [...s, g]); }
+            } catch {}
+          }} />
       )}
+
+      {similarStack.map((sg, idx) => (
+        <Inspector key={`similar-${sg.id}-${idx}`} game={sg} mode="popup"
+          onClose={() => setSimilarStack((s) => s.filter((_, i) => i !== idx))}
+          onEdit={setEditingGame} onDelete={deleteGame} tags={tags} onUpdate={updateGame}
+          colorCoded={colorCoded} scoreSource={scoreSource} tintColors={tintColors}
+          onTagInclude={toggleIncTag} onTagExclude={toggleExcTag}
+          onSubtagInclude={toggleIncSub} onSubtagExclude={toggleExcSub}
+          onGenreFilter={onGenreFilter}
+          onFeatureFilter={onFeatureFilter}
+          onCommunityTagFilter={onCommunityTagFilter}
+          onSimilarClick={async (gameId) => {
+            const found = allGames.find((g) => g.id === gameId);
+            if (found) { setSimilarStack((s) => [...s, found]); return; }
+            try {
+              const res = await fetch(`/api/games/${gameId}`);
+              if (res.ok) { const g = await res.json(); setSimilarStack((s) => [...s, g]); }
+            } catch {}
+          }} />
+      ))}
 
       {editingGame && (
         <EditModal game={editingGame} tags={tags}
@@ -862,7 +892,7 @@ function ManualAddRow({ query, tags, adding, onAdd }: {
 }
 
 // Active filter chips bar
-function FilterChips({ tags, subtags, filters, onChange }: { tags: Tag[]; subtags: Subtag[]; filters: Filters; onChange: (f: Filters) => void }) {
+function FilterChips({ tags, subtags, filters, onChange, onClearSearch }: { tags: Tag[]; subtags: Subtag[]; filters: Filters; onChange: (f: Filters) => void; onClearSearch?: () => void }) {
   const chips: { label: string; color: string; type: "include" | "exclude"; onRemove: () => void }[] = [];
 
   for (const id of filters.includeTags || []) {
@@ -949,13 +979,13 @@ function FilterChips({ tags, subtags, filters, onChange }: { tags: Tag[]; subtag
           <button onClick={chip.onRemove} className="hover:opacity-70 ml-0.5 font-bold" style={{ color: chip.color }}>×</button>
         </span>
       ))}
-      <button onClick={() => onChange({
+      <button onClick={() => { onChange({
         ...filters, includeTags: [], excludeTags: [], includeSubtags: [], excludeSubtags: [],
         includeGenres: [], excludeGenres: [],
         includeFeatures: [], excludeFeatures: [], includeCommunityTags: [], excludeCommunityTags: [],
         includeDevelopers: [], excludeDevelopers: [], includePublishers: [], excludePublishers: [],
-        untagged: false, withNotes: false, hideWishlistOnly: false,
-      })} className="text-[10px] text-danger hover:underline ml-1">Clear all</button>
+        untagged: false, withNotes: false, hideWishlistOnly: false, search: undefined,
+      }); onClearSearch?.(); }} className="text-[10px] text-danger hover:underline ml-1">Clear all</button>
     </div>
   );
 }

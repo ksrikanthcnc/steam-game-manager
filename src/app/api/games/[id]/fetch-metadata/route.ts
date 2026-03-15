@@ -84,6 +84,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     // Extract structured data
     let description = "";
+    let steamName: string | null = null;
     let genres: string[] = [];
     let features: string[] = [];
     let developers = "";
@@ -100,6 +101,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     if (detailData?.[String(appid)]?.success) {
       const d = detailData[String(appid)].data!;
+      steamName = (d.name as string) || null;
       description = (d.short_description as string) || "";
       genres = ((d.genres as { description: string }[]) || []).map((g) => g.description);
       features = ((d.categories as { description: string }[]) || []).map((c) => c.description);
@@ -140,6 +142,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Update game record
     db.prepare(`
       UPDATE games SET
+        name = COALESCE(?, name),
         description = ?, steam_genres = ?, steam_features = ?, community_tags = ?,
         developers = ?, publishers = ?, release_date = ?,
         review_sentiment = ?, positive_percent = ?, total_reviews = ?,
@@ -147,6 +150,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         total_screenshots = ?, total_movies = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
+      steamName,
       description, JSON.stringify(genres), JSON.stringify(features), JSON.stringify(communityTags),
       developers, publishers, releaseDate,
       sentiment, positivePercent, totalReviews,

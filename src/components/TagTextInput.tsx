@@ -135,6 +135,17 @@ export default function TagTextInput({ tags, onAdd }: Props) {
           subtag_id: null, subtag_name: null, subtag_type: null,
           score,
         });
+        // When a tag matches, also show all its subtags (so "kids" shows kids › platformer, etc.)
+        if (score <= 1) { // exact or prefix match on tag name
+          for (const s of allSubtags) {
+            if (s.tag_id !== t.id) continue;
+            addResult({
+              tag_id: t.id, tag_name: t.name,
+              subtag_id: s.id, subtag_name: s.name, subtag_type: s.type,
+              score: score + 1, // slightly lower priority than the tag itself
+            });
+          }
+        }
       }
     }
 
@@ -146,7 +157,7 @@ export default function TagTextInput({ tags, onAdd }: Props) {
       return aName.localeCompare(bName);
     });
 
-    return results.slice(0, 12);
+    return results.slice(0, 20);
   }, [currentToken, allSubtags, tags]);
 
   const acceptMatch = useCallback((match: TagMatch) => {

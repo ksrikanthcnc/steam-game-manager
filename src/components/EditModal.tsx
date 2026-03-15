@@ -31,6 +31,7 @@ export default function EditModal({ game, tags, onSave, onClose }: Props) {
   const [developers, setDevelopers] = useState(game.developers || "");
   const [publishers, setPublishers] = useState(game.publishers || "");
   const [releaseDate, setReleaseDate] = useState(game.release_date || "");
+  const [addedAt, setAddedAt] = useState(game.added_at || "");
   const [genres, setGenres] = useState(() => { try { return JSON.parse(game.steam_genres || "[]").join(", "); } catch { return ""; } });
   const [allGenres, setAllGenres] = useState<string[]>([]);
   const [tagEntries, setTagEntries] = useState<TagEntry[]>(() => {
@@ -162,6 +163,7 @@ export default function EditModal({ game, tags, onSave, onClose }: Props) {
         developers,
         publishers,
         release_date: releaseDate,
+        added_at: addedAt || undefined,
         steam_genres: JSON.stringify(genres.split(",").map((s: string) => s.trim()).filter(Boolean)),
         tags: tagData,
       });
@@ -175,7 +177,7 @@ export default function EditModal({ game, tags, onSave, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-surface rounded-lg p-5 w-full max-w-md space-y-3 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-surface rounded-lg p-5 space-y-3 overflow-y-auto" style={{ width: "28rem", maxWidth: "90vw", maxHeight: "85vh", resize: "both", minWidth: "20rem", minHeight: "300px" }} onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-medium">Edit Game</h3>
 
         <label className="block text-xs text-muted">
@@ -380,6 +382,11 @@ export default function EditModal({ game, tags, onSave, onClose }: Props) {
           <label className="block text-xs text-muted">
             Release Date
             <input type="text" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} placeholder="Mar 15, 2024"
+              className="mt-1 w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent" />
+          </label>
+          <label className="block text-xs text-muted">
+            Added Date
+            <input type="text" value={addedAt} onChange={(e) => setAddedAt(e.target.value)} placeholder="2024-03-15 12:00:00"
               className="mt-1 w-full bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent" />
           </label>
         </div>

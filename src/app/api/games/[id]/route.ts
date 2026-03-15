@@ -48,6 +48,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if ("developers" in body) { sets.push("developers = ?"); vals.push(body.developers ?? ""); }
   if ("publishers" in body) { sets.push("publishers = ?"); vals.push(body.publishers ?? ""); }
   if ("release_date" in body) { sets.push("release_date = ?"); vals.push(body.release_date ?? ""); }
+  if ("added_at" in body) { sets.push("added_at = ?"); vals.push(body.added_at ?? null); }
   vals.push(id);
 
   db.prepare(`UPDATE games SET ${sets.join(", ")} WHERE id = ?`).run(...vals);

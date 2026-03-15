@@ -382,6 +382,20 @@ export default function SettingsPage() {
               }}
               className="px-3 py-1.5 rounded text-xs border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
             >⟳ Re-init Database</button>
+            <button
+              onClick={async () => {
+                setSyncRunning("similarities"); setSyncLog(["Recalculating similarities..."]);
+                try {
+                  const res = await fetch("/api/sync/similarities", { method: "POST" });
+                  const data = await res.json();
+                  if (data.ok) appendLog(`Done: ${data.games} games, ${data.pairs} similarity pairs computed.`);
+                  else appendLog("Error: " + JSON.stringify(data));
+                } catch (err) { appendLog(`Error: ${err}`); }
+                setSyncRunning(null);
+              }}
+              disabled={!!syncRunning}
+              className="ml-2 px-3 py-1.5 rounded text-xs border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-colors disabled:opacity-50"
+            >🔗 Recalculate Similarities</button>
           </div>
 
           {/* Tag & Subtag Management */}

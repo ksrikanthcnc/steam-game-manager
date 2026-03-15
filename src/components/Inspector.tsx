@@ -62,6 +62,7 @@ interface InspectorProps {
   onGenreFilter?: (name: string, mode: "include" | "exclude") => void;
   onFeatureFilter?: (name: string, mode: "include" | "exclude") => void;
   onCommunityTagFilter?: (name: string, mode: "include" | "exclude") => void;
+  onSimilarClick?: (gameId: number) => void;
   colorCoded?: boolean;
   scoreSource?: "steam" | "steamdb";
   tintColors?: TintColors | null;
@@ -199,8 +200,8 @@ function TagPills({ items, color, onFilter }: {
 }
 
 // Two-column layout
-const InspectorLayout = memo(function InspectorLayout({ data, onClose, tagsSlot, footerSlot, tintBg, onGenreFilter, onFeatureFilter, onCommunityTagFilter }: {
-  data: LayoutData; onClose: () => void; tagsSlot?: React.ReactNode; footerSlot: React.ReactNode;
+const InspectorLayout = memo(function InspectorLayout({ data, onClose, tagsSlot, similarSlot, footerSlot, tintBg, onGenreFilter, onFeatureFilter, onCommunityTagFilter }: {
+  data: LayoutData; onClose: () => void; tagsSlot?: React.ReactNode; similarSlot?: React.ReactNode; footerSlot: React.ReactNode;
   tintBg?: string;
   onGenreFilter?: (name: string, mode: "include" | "exclude") => void;
   onFeatureFilter?: (name: string, mode: "include" | "exclude") => void;
@@ -274,12 +275,6 @@ const InspectorLayout = memo(function InspectorLayout({ data, onClose, tagsSlot,
     localStorage.removeItem("gm_inspector_size");
     localStorage.removeItem("gm_inspector_layout");
   }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
 
   const reviewColor = data.positivePercent >= 70 ? "#22c55e" : data.positivePercent >= 40 ? "#f59e0b" : "#ef4444";
 
@@ -397,6 +392,11 @@ const InspectorLayout = memo(function InspectorLayout({ data, onClose, tagsSlot,
                 <TagPills items={data.features} color="#2dd4bf" onFilter={onFeatureFilter} />
               </div>
             </div>
+            {similarSlot && (
+              <div className="shrink-0 px-3 py-1.5 border-t border-border/30 overflow-x-auto">
+                {similarSlot}
+              </div>
+            )}
           </div>
         </div>
 
@@ -413,7 +413,7 @@ const InspectorLayout = memo(function InspectorLayout({ data, onClose, tagsSlot,
 });
 
 // Main Inspector for DB games
-export default function Inspector({ game, onClose, onEdit, onDelete, tags, onUpdate, onTagInclude, onTagExclude, onSubtagInclude, onSubtagExclude, onGenreFilter, onFeatureFilter, onCommunityTagFilter, colorCoded, scoreSource, tintColors }: InspectorProps) {
+export default function Inspector({ game, onClose, onEdit, onDelete, tags, onUpdate, onTagInclude, onTagExclude, onSubtagInclude, onSubtagExclude, onGenreFilter, onFeatureFilter, onCommunityTagFilter, onSimilarClick, colorCoded, scoreSource, tintColors }: InspectorProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -514,7 +514,36 @@ export default function Inspector({ game, onClose, onEdit, onDelete, tags, onUpd
     return getScoreTint(game, scoreSource || "steamdb", { ...tintColors, opacity: Math.min(tintColors.opacity * 2.5, 0.35) });
   }, [colorCoded, tintColors, game.positive_percent, game.total_reviews, scoreSource]);
 
-  return <InspectorLayout data={data} onClose={onClose} tagsSlot={tagsSlot} footerSlot={footerSlot}
+  // Similar games
+  const [similarGames, setSimilarGames] = useState<{ id: number; name: string; score: number; shared: string[] }[]>([]);
+  useEffect(() => {
+    setSimilarGames([]);
+    fetch(`/api/games/${game.id}/similar`).then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setSimilarGames(data);
+    }).catch(() => {});
+  }, [game.id]);
+
+  const similarSlot = useMemo(() => {
+    if (similarGames.length === 0) return null;
+    return (
+      <div>
+        <span className="text-[10px] text-muted">Similar ({similarGames.length})</span>
+        <div className="flex flex-wrap gap-1 mt-0.5">
+          {similarGames.map((s) => (
+            <span key={s.id}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300 cursor-pointer hover:bg-purple-500/20 hover:border-purple-500/40 transition-colors"
+              title={s.shared.join(", ")}
+              onClick={() => onSimilarClick?.(s.id)}>
+              {s.name}
+              <span className="ml-1 text-[9px] text-purple-400/60">{s.score.toFixed(1)}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }, [similarGames, onSimilarClick]);
+
+  return <InspectorLayout data={data} onClose={onClose} tagsSlot={tagsSlot} similarSlot={similarSlot} footerSlot={footerSlot}
     tintBg={inspectorTint}
     onGenreFilter={onGenreFilter} onFeatureFilter={onFeatureFilter} onCommunityTagFilter={onCommunityTagFilter} />;
 }

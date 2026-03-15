@@ -351,6 +351,7 @@ function rebuildFromCache(
 ): number {
   const updateGame = db.prepare(`
     UPDATE games SET
+      name = COALESCE(?, name),
       description = ?, steam_genres = ?, steam_features = ?, community_tags = ?,
       developers = ?, publishers = ?, release_date = ?, review_sentiment = ?,
       positive_percent = ?, total_reviews = ?, metacritic_score = ?,
@@ -364,6 +365,7 @@ function rebuildFromCache(
     const cached = cacheMap.get(g.steam_appid);
     if (!cached) continue;
 
+    let steamName: string | null = null;
     let desc = "", genres: string[] = [], feats: string[] = [], devs = "", pubs = "";
     let relDate = "", mc = 0, ss: string[] = [], ctags: string[] = [];
     let movies: { name: string; thumbnail_url: string; video_url: string }[] = [];
@@ -374,6 +376,7 @@ function rebuildFromCache(
         const dd = JSON.parse(cached.appdetails) as Record<string, { success: boolean; data?: Record<string, unknown> }>;
         if (dd?.[String(g.steam_appid)]?.success) {
           const d = dd[String(g.steam_appid)].data!;
+          steamName = (d.name as string) || null;
           desc = (d.short_description as string) || "";
           genres = ((d.genres as { description: string }[]) || []).map((x) => x.description);
           feats = ((d.categories as { description: string }[]) || []).map((x) => x.description);
@@ -410,7 +413,7 @@ function rebuildFromCache(
       try { ctags = JSON.parse(cached.store_page_tags); } catch { /* ignore */ }
     }
 
-    updateGame.run(desc, JSON.stringify(genres), JSON.stringify(feats), JSON.stringify(ctags),
+    updateGame.run(steamName, desc, JSON.stringify(genres), JSON.stringify(feats), JSON.stringify(ctags),
       devs, pubs, relDate, sent, pct, total, mc, JSON.stringify(ss), JSON.stringify(movies), totalSS, totalMov, g.id);
     applied++;
   }
