@@ -396,6 +396,18 @@ export default function SettingsPage() {
               disabled={!!syncRunning}
               className="ml-2 px-3 py-1.5 rounded text-xs border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-colors disabled:opacity-50"
             >🔗 Recalculate Similarities</button>
+            <button
+              onClick={async () => {
+                appendLog("Flushing WAL...");
+                try {
+                  const res = await fetch("/api/db/flush-wal", { method: "POST" });
+                  const data = await res.json();
+                  if (data.ok) appendLog("WAL flushed successfully.");
+                  else appendLog("Error: " + JSON.stringify(data));
+                } catch (err) { appendLog(`Error: ${err}`); }
+              }}
+              className="ml-2 px-3 py-1.5 rounded text-xs border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+            >💾 Flush WAL</button>
           </div>
 
           {/* Tag & Subtag Management */}
