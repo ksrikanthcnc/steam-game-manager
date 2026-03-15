@@ -62,7 +62,14 @@ export function GET() {
   for (const [tagName, gMap] of tagMap) {
     lines.push(`--- ${tagName}`);
     const all = Array.from(gMap.values());
-    all.sort((a, b) => a.id - b.id);
+    all.sort((a, b) => {
+      const aDate = a.added_at || "";
+      const bDate = b.added_at || "";
+      if (aDate && bDate) return bDate.localeCompare(aDate); // newest first
+      if (aDate) return -1;
+      if (bDate) return 1;
+      return b.id - a.id; // fallback: higher id = newer
+    });
 
     // 1) Plain — no subtags (at top, no header)
     const plain = all.filter((g) => g.metas.length === 0 && g.genres.length === 0);
