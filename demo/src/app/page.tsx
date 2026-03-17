@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useTags, useGames, useSubtags, Filters, computeDynamicCounts } from "@/lib/hooks";
 import { GameWithTags, Tag, Subtag, COLOR_PRESETS, TintColors } from "@/lib/types";
 import Sidebar from "@/components/Sidebar";
@@ -247,6 +248,7 @@ export default function Home() {
             </div>
           )}
           <span className="text-xs text-muted">{isFiltered ? `${games.length}/${totalCount}` : `${totalCount}`} games</span>
+          <Link href="/settings" className="text-xs text-muted hover:text-accent" title="Settings">⚙</Link>
         </div>
         {isFiltered && <FilterChips tags={tags} subtags={subtags} filters={filters} onChange={setFilters} onClearSearch={() => setSearchQuery("")} />}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 relative">
