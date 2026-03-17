@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: demo/package-lock.json
 
@@ -31,12 +31,7 @@ jobs:
         run: npm ci
         working-directory: demo
 
-      - name: Copy data from main app
-        run: |
-          mkdir -p demo/public/data
-          cp demo/public/data/*.json demo/public/data/ 2>/dev/null || echo "Using committed data files"
-
-      - name: Build
+      - name: Build static site
         run: npx next build
         working-directory: demo
         env:
