@@ -4,6 +4,8 @@ A local-first game library manager built with Next.js. Sync your Steam wishlist 
 
 Everything runs on your machine — SQLite database, locally cached images, no cloud dependency.
 
+**[Live Demo](https://ksrikanthcnc.github.io/steam-game-manager/)** — read-only static version with sample data
+
 ![Card View](docs/screenshots/card-view.png)
 ![List View](docs/screenshots/list-view.png)
 ![Inspector](docs/screenshots/inspector.png)
