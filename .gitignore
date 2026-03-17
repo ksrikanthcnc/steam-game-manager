@@ -40,3 +40,8 @@ next-env.d.ts
 
 # data (created at runtime)
 /data/
+
+
+demo/node_modules
+demo/.next
+demo/out
