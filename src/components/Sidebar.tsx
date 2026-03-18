@@ -101,9 +101,19 @@ export default function Sidebar({
     return m;
   }, [subtags, dyn.subtagCounts]);
 
-  const sortedTags = useMemo(() =>
-    [...tags].sort((a, b) => (dyn.customTagCounts.get(b.id) || 0) - (dyn.customTagCounts.get(a.id) || 0)),
-  [tags, dyn.customTagCounts]);
+  const sortedTags = useMemo(() => {
+    const incTagIds = filters.includeTags || [], excTagIds = filters.excludeTags || [];
+    const incSubIds = filters.includeSubtags || [], excSubIds = filters.excludeSubtags || [];
+    const byCount = [...tags].sort((a, b) => (dyn.customTagCounts.get(b.id) || 0) - (dyn.customTagCounts.get(a.id) || 0));
+    const isSelected = (t: Tag) => {
+      if (incTagIds.includes(t.id) || excTagIds.includes(t.id)) return true;
+      const subs = subsByTag.get(t.id) || [];
+      return subs.some(s => incSubIds.includes(s.id) || excSubIds.includes(s.id));
+    };
+    const sel = byCount.filter(t => isSelected(t));
+    const rest = byCount.filter(t => !isSelected(t));
+    return [...sel, ...rest];
+  }, [tags, dyn.customTagCounts, filters.includeTags, filters.excludeTags, filters.includeSubtags, filters.excludeSubtags, subsByTag]);
 
   // Toggle helpers
   const toggleIncTag = (id: number) => {
@@ -152,46 +162,59 @@ export default function Sidebar({
     ((filters[incKey] as string[]) || []).includes(name) || ((filters[excKey] as string[]) || []).includes(name);
 
   // Sorted/filtered lists
+  // Helper: float selected items to top (inc first, exc second), keeping normal sort within each group
+  const pinSelected = <T extends { name: string }>(items: T[], incArr: string[], excArr: string[]): T[] => {
+    const inc = items.filter(i => incArr.includes(i.name));
+    const exc = items.filter(i => excArr.includes(i.name));
+    const rest = items.filter(i => !incArr.includes(i.name) && !excArr.includes(i.name));
+    return [...inc, ...exc, ...rest];
+  };
+
   const sortSteam = (items: GenreInfo[], countMap: Map<string, number>) =>
     items.map((i) => ({ ...i, dc: countMap.get(i.name) || 0 }))
       .sort((a, b) => steamSort === "count" ? b.dc - a.dc : a.name.localeCompare(b.name));
 
   const fGenres = useMemo(() => {
     const filtered = q ? genres.filter((g) => g.name.toLowerCase().includes(q)) : genres;
-    return sortSteam(filtered, dyn.genreCounts)
+    const sorted = sortSteam(filtered, dyn.genreCounts)
       .filter((g) => g.dc > 0 || isActive(g.name, "includeGenres", "excludeGenres"));
+    return pinSelected(sorted, filters.includeGenres || [], filters.excludeGenres || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genres, q, dyn.genreCounts, steamSort, filters.includeGenres, filters.excludeGenres]);
 
   const fComm = useMemo(() => {
     const filtered = q ? communityTags.filter((t) => t.name.toLowerCase().includes(q)) : communityTags;
-    return sortSteam(filtered, dyn.communityTagCounts)
+    const sorted = sortSteam(filtered, dyn.communityTagCounts)
       .filter((c) => c.dc > 0 || isActive(c.name, "includeCommunityTags", "excludeCommunityTags"));
+    return pinSelected(sorted, filters.includeCommunityTags || [], filters.excludeCommunityTags || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [communityTags, q, dyn.communityTagCounts, steamSort, filters.includeCommunityTags, filters.excludeCommunityTags]);
 
   const fFeats = useMemo(() => {
     const filtered = q ? features.filter((f) => f.name.toLowerCase().includes(q)) : features;
-    return sortSteam(filtered, dyn.featureCounts)
+    const sorted = sortSteam(filtered, dyn.featureCounts)
       .filter((f) => f.dc > 0 || isActive(f.name, "includeFeatures", "excludeFeatures"));
+    return pinSelected(sorted, filters.includeFeatures || [], filters.excludeFeatures || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [features, q, dyn.featureCounts, steamSort, filters.includeFeatures, filters.excludeFeatures]);
 
   const devItems = useMemo(() => {
     const items = Array.from(dyn.developerCounts.entries()).map(([name, count]) => ({ name, count, dc: count }));
     const filtered = q ? items.filter((d) => d.name.toLowerCase().includes(q)) : items;
-    return filtered
+    const sorted = filtered
       .filter((d) => d.dc > 0 || isActive(d.name, "includeDevelopers", "excludeDevelopers"))
       .sort((a, b) => steamSort === "count" ? b.dc - a.dc : a.name.localeCompare(b.name));
+    return pinSelected(sorted, filters.includeDevelopers || [], filters.excludeDevelopers || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dyn.developerCounts, q, steamSort, filters.includeDevelopers, filters.excludeDevelopers]);
 
   const pubItems = useMemo(() => {
     const items = Array.from(dyn.publisherCounts.entries()).map(([name, count]) => ({ name, count, dc: count }));
     const filtered = q ? items.filter((p) => p.name.toLowerCase().includes(q)) : items;
-    return filtered
+    const sorted = filtered
       .filter((p) => p.dc > 0 || isActive(p.name, "includePublishers", "excludePublishers"))
       .sort((a, b) => steamSort === "count" ? b.dc - a.dc : a.name.localeCompare(b.name));
+    return pinSelected(sorted, filters.includePublishers || [], filters.excludePublishers || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dyn.publisherCounts, q, steamSort, filters.includePublishers, filters.excludePublishers]);
 
@@ -214,7 +237,10 @@ export default function Sidebar({
     for (const c of commItems) {
       if (!seen.has(c.name.toLowerCase())) { result.push(c); seen.set(c.name.toLowerCase(), c); }
     }
-    return result.sort((a, b) => steamSort === "count" ? b.dc - a.dc : a.name.localeCompare(b.name));
+    const sorted = result.sort((a, b) => steamSort === "count" ? b.dc - a.dc : a.name.localeCompare(b.name));
+    const allInc = [...(filters.includeGenres || []), ...(filters.includeCommunityTags || [])];
+    const allExc = [...(filters.excludeGenres || []), ...(filters.excludeCommunityTags || [])];
+    return pinSelected(sorted, allInc, allExc);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fGenres, fComm, steamSort, filters.includeGenres, filters.excludeGenres, filters.includeCommunityTags, filters.excludeCommunityTags]);
 

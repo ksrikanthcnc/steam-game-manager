@@ -269,11 +269,21 @@ function filterGames(allGames: GameWithTags[], filters: Filters): GameWithTags[]
       checks.push(customChecks.every(Boolean));
     }
 
-    if (includeGenres.length > 0) checks.push(includeGenres.some((g) => genres.includes(g)));
-    if (includeFeatures.length > 0) checks.push(includeFeatures.some((f) => features.includes(f)));
-    if (includeCommunityTags.length > 0) checks.push(includeCommunityTags.some((t) => ctags.includes(t)));
-    if (includeDevelopers.length > 0) checks.push(includeDevelopers.some((d) => devs.includes(d)));
-    if (includePublishers.length > 0) checks.push(includePublishers.some((p) => pubs.includes(p)));
+    // In AND mode, each selected item is its own check (must match ALL).
+    // In OR mode, any match within or across categories passes.
+    if (filterMode === "AND") {
+      for (const g of includeGenres) checks.push(genres.includes(g));
+      for (const f of includeFeatures) checks.push(features.includes(f));
+      for (const t of includeCommunityTags) checks.push(ctags.includes(t));
+      for (const d of includeDevelopers) checks.push(devs.includes(d));
+      for (const p of includePublishers) checks.push(pubs.includes(p));
+    } else {
+      if (includeGenres.length > 0) checks.push(includeGenres.some((g) => genres.includes(g)));
+      if (includeFeatures.length > 0) checks.push(includeFeatures.some((f) => features.includes(f)));
+      if (includeCommunityTags.length > 0) checks.push(includeCommunityTags.some((t) => ctags.includes(t)));
+      if (includeDevelopers.length > 0) checks.push(includeDevelopers.some((d) => devs.includes(d)));
+      if (includePublishers.length > 0) checks.push(includePublishers.some((p) => pubs.includes(p)));
+    }
 
     if (checks.length === 0) return true;
     return filterMode === "AND" ? checks.every(Boolean) : checks.some(Boolean);

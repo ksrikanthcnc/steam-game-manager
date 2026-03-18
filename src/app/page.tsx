@@ -177,6 +177,8 @@ export default function Home() {
     sessionStorage.removeItem("gm_scroll");
     sessionStorage.removeItem("gm_display_limit");
     scrollRestoredRef.current = true; // don't restore after a filter change
+    // Smooth scroll to top so the view doesn't jump awkwardly
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [filters]);
 
   // IntersectionObserver for infinite scroll
