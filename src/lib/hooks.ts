@@ -309,6 +309,24 @@ function sortGames(games: GameWithTags[], sort?: string, dir?: "asc" | "desc", s
   return sorted;
 }
 
+/** Parse "20 Nov, 2025", "Nov 20, 2025", "June 2026", "Q3 2026" style dates into a sortable timestamp. 
+ *  "Coming soon" / "To be announced" → far future. Returns 0 for unparseable. */
+function parseReleaseDate(s: string): number {
+  if (!s) return 0;
+  const low = s.toLowerCase().trim();
+  if (low === "coming soon" || low === "to be announced" || low === "tba") return 32503680000000; // year 3000
+  const qm = low.match(/^q([1-4])\s+(\d{4})$/);
+  if (qm) return new Date(Number(qm[2]), (Number(qm[1]) - 1) * 3, 1).getTime();
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.getTime();
+  const m = s.match(/^(\d{1,2})\s+(\w+),?\s+(\d{4})$/);
+  if (m) {
+    const d2 = new Date(`${m[2]} ${m[1]}, ${m[3]}`);
+    if (!isNaN(d2.getTime())) return d2.getTime();
+  }
+  return 0;
+}
+
 function compareBySortKey(a: GameWithTags, b: GameWithTags, sort: string, d: number): number {
   switch (sort) {
     case "name": return d * a.name.localeCompare(b.name);
@@ -329,9 +347,9 @@ function compareBySortKey(a: GameWithTags, b: GameWithTags, sort: string, d: num
       return d * (av - bv);
     }
     case "release_date": case "release": {
-      const av = a.release_date || "", bv = b.release_date || "";
+      const av = parseReleaseDate(a.release_date || ""), bv = parseReleaseDate(b.release_date || "");
       if (!av && !bv) return 0; if (!av) return 1; if (!bv) return -1;
-      return d * av.localeCompare(bv);
+      return d * (av - bv);
     }
     case "metacritic": {
       const av = a.metacritic_score || 0, bv = b.metacritic_score || 0;
@@ -401,10 +419,23 @@ function compareBySortKey(a: GameWithTags, b: GameWithTags, sort: string, d: num
   }
 }
 
+// Fisher-Yates shuffle with a numeric seed (deterministic)
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const out = [...arr];
+  let s = seed;
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (s * 16807 + 0) % 2147483647;
+    const j = s % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 // --- Main hook: load all games once, filter client-side ---
 export function useGames() {
   const [allGames, setAllGames] = useState<GameWithTags[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shuffleSeed, setShuffleSeed] = useState<number | null>(null);
   const [filters, setFiltersRaw] = useState<Filters>(() => {
     const saved = loadJson<Filters>("gm_filters", {});
     // Default hideWishlistOnly to true for new users
@@ -414,6 +445,7 @@ export function useGames() {
 
   const setFilters = useCallback((f: Filters) => {
     setFiltersRaw(f);
+    setShuffleSeed(null); // clear shuffle when filters/sort change
     const { search, ...persistable } = f;
     saveJson("gm_filters", persistable);
   }, []);
@@ -438,6 +470,7 @@ export function useGames() {
   // When search is active, sort by relevance first, then normal sort as tiebreaker
   const games = useMemo(() => {
     const filtered = filterGames(allGames, filters);
+    if (shuffleSeed !== null) return seededShuffle(filtered, shuffleSeed);
     if (filters.search) {
       const scored = filtered.map((g) => ({ g, s: searchScore(g, filters.search!) }));
       scored.sort((a, b) => {
@@ -449,9 +482,12 @@ export function useGames() {
       return scored.map((x) => x.g);
     }
     return sortGames(filtered, filters.sort, filters.dir, filters.sorts);
-  }, [allGames, filters]);
+  }, [allGames, filters, shuffleSeed]);
 
   const totalCount = allGames.length;
+
+  const shuffle = useCallback(() => setShuffleSeed(Date.now()), []);
+  const clearShuffle = useCallback(() => setShuffleSeed(null), []);
 
   const addGame = async (game: { name: string; tag_id?: number; subtag_id?: number | null; steam_appid?: number; notes?: string }) => {
     const res = await fetch("/api/games", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(game) });
@@ -477,5 +513,5 @@ export function useGames() {
 
   const allAppIds = useMemo(() => new Set(allGames.filter(g => g.steam_appid).map(g => g.steam_appid)), [allGames]);
 
-  return { games, allGames, totalCount, loading, filters, setFilters, refresh, addGame, updateGame, deleteGame, allAppIds };
+  return { games, allGames, totalCount, loading, filters, setFilters, refresh, addGame, updateGame, deleteGame, allAppIds, shuffleSeed, shuffle, clearShuffle };
 }

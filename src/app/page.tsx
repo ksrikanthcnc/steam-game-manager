@@ -27,7 +27,7 @@ interface SteamResult {
 export default function Home() {
   const { tags } = useTags();
   const { subtags } = useSubtags();
-  const { games, allGames, totalCount, loading, filters, setFilters, addGame, updateGame, deleteGame, allAppIds } = useGames();
+  const { games, allGames, totalCount, loading, filters, setFilters, addGame, updateGame, deleteGame, allAppIds, shuffleSeed, shuffle, clearShuffle } = useGames();
   const { genres, features, communityTags } = useGenres();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -468,7 +468,7 @@ export default function Home() {
         id: gameId, name: result.name, steam_appid: result.appid,
         notes: "", description: "", steam_genres: "[]", steam_features: "[]",
         community_tags: "[]", developers: "", publishers: "", release_date: "",
-        screenshots: "[]", movies: "[]", tags: data.games?.[0]?.tags || [],
+        screenshots: "[]", movies: "[]", tags: (data.games?.[0] as any)?.tags || [],
       } as GameWithTags);
       // Fetch metadata in background, then refresh modal data
       if (result.appid) {
@@ -591,6 +591,12 @@ export default function Home() {
             className="bg-background border border-border rounded px-2 py-1 text-xs text-muted hover:text-foreground"
             title={filters.dir === "desc" ? "Descending" : "Ascending"}
           >{filters.dir === "desc" ? "↓" : "↑"}</button>
+
+          <button
+            onClick={() => shuffleSeed !== null ? clearShuffle() : shuffle()}
+            className={`px-2 py-1 text-xs rounded border ${shuffleSeed !== null ? "bg-purple-500/20 border-purple-500 text-purple-400" : "bg-background border-border text-muted hover:text-foreground"}`}
+            title={shuffleSeed !== null ? "Shuffled — click to unshuffle" : "Shuffle / Randomize"}
+          >🎲</button>
 
           <div className="flex gap-0.5 bg-background rounded border border-border">
             <button onClick={() => setView("cards")}
